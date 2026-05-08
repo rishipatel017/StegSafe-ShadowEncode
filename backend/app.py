@@ -1,13 +1,15 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
 import tempfile
-from werkzeug.utils import secure_filename
 import base64
 import io
 from PIL import Image
-import numpy as np
-import json
+import traceback
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Import our custom modules
 from steganography.lsb_encoder import LSBEncoder
@@ -15,7 +17,7 @@ from crypto.aes_cipher import AESCipher
 from analysis.image_analyzer import ImageAnalyzer
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Configuration
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
@@ -26,6 +28,12 @@ ALLOWED_EXTENSIONS = {'png', 'bmp', 'jpg', 'jpeg'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({
+        'message': 'StegSafe Backend Running'
+    })
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -102,20 +110,30 @@ def encode_message():
         analyzer = ImageAnalyzer()
         metrics = analyzer.analyze(image, encoded_image)
         
+        # Get original file size
+        file.stream.seek(0, os.SEEK_END)
+        original_size = file.stream.tell()
+        file.stream.seek(0)
+        
+        # Add image size validation
+        if image.size[0] * image.size[1] > 40000000:
+            return jsonify({'error': 'Image too large'}), 400
+        
         # Convert to base64 for response
         buffer = io.BytesIO()
-        encoded_image.save(buffer, format='PNG')
+        encoded_image.save(buffer, format='PNG', optimize=True)
         img_str = base64.b64encode(buffer.getvalue()).decode()
         
         return jsonify({
             'success': True,
             'encoded_image': img_str,
             'metrics': metrics,
-            'original_size': len(file.read()),
+            'original_size': original_size,
             'encoded_size': len(buffer.getvalue())
         })
         
     except Exception as e:
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/decode', methods=['POST'])
@@ -187,6 +205,7 @@ def decode_message():
         return jsonify(response_data)
         
     except Exception as e:
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/diagnose', methods=['POST'])
@@ -240,6 +259,7 @@ def diagnose_image():
         return jsonify(diagnosis)
         
     except Exception as e:
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/analyze', methods=['POST'])
@@ -269,6 +289,7 @@ def analyze_images():
         })
         
     except Exception as e:
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/batch/encode', methods=['POST'])
@@ -456,6 +477,7 @@ def batch_decode():
         })
         
     except Exception as e:
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
