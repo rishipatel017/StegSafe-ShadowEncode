@@ -3,7 +3,7 @@ services:
   - type: web
     name: stegsafe-backend
     env: python
-    plan: free
+    rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: python app.py
     healthCheckPath: /api/health
@@ -11,17 +11,15 @@ services:
       - key: PYTHON_VERSION
         value: 3.9
     autoDeploy: true
-    rootDir: backend
 
   # Frontend Service
   - type: web
     name: stegsafe-frontend
     env: static
-    plan: free
-    buildCommand: npm run build
+    rootDir: frontend
+    buildCommand: npm install && npm run build
     staticPublishPath: build
     envVars:
       - key: REACT_APP_API_URL
         value: https://stegsafe-backend.onrender.com/api
     autoDeploy: true
-    rootDir: frontend
